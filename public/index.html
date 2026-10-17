@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Border Wars 3D</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#04040f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Border Wars">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="3D Skate Territory — claim the grid before your rival does!">
+
+<!-- App icons (iOS needs these inline) -->
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',Arial,sans-serif;}
+canvas{display:block;}
+.screen{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.92);gap:16px;}
+.hidden{display:none!important;}
+.gtitle{font-size:2.6rem;font-weight:900;letter-spacing:5px;background:linear-gradient(135deg,#4db8ff,#ff4d4d);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.gsub{font-size:0.72rem;color:#555;letter-spacing:3px;text-transform:uppercase;}
+.gbtn{padding:14px 36px;font-size:0.82rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;cursor:pointer;border-radius:10px;border:2px solid #4db8ff;background:rgba(77,184,255,0.1);color:#4db8ff;min-width:220px;transition:all 0.15s;-webkit-tap-highlight-color:transparent;}
+.gbtn:active{background:rgba(77,184,255,0.35);transform:scale(0.97);}
+.gbtn.grey{border-color:#444;color:#666;background:transparent;}
+
+/* HUD */
+#hud{position:fixed;top:0;left:0;right:0;z-index:10;height:54px;display:flex;align-items:stretch;background:rgba(4,4,16,0.95);border-bottom:1px solid #1a1a40;backdrop-filter:blur(8px);}
+.hc{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.hl{border-right:1px solid #1a1a40;}.hr{border-left:1px solid #1a1a40;}
+.hlbl{font-size:0.5rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:1px;}
+.hval{font-size:1.6rem;font-weight:900;line-height:1;}
+.hmid{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 10px;}
+.hmid-l{font-size:0.38rem;color:#252540;letter-spacing:2px;text-transform:uppercase;}
+.hmid-v{font-size:0.95rem;font-weight:700;color:#252540;}
+
+/* DPAD — larger, more tactile */
+#dpad{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:10;
+  display:grid;grid-template-areas:". up ." "left mid right" ". down .";
+  grid-template-columns:74px 74px 74px;grid-template-rows:74px 74px 74px;gap:6px;}
+.db{width:74px;height:74px;
+  background:linear-gradient(145deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04));
+  border:2px solid rgba(255,255,255,0.15);border-radius:16px;
+  color:rgba(255,255,255,0.7);font-size:1.6rem;display:flex;align-items:center;
+  justify-content:center;cursor:pointer;user-select:none;
+  -webkit-tap-highlight-color:transparent;touch-action:none;
+  box-shadow:0 4px 12px rgba(0,0,0,0.4);
+  transition:background 0.05s,border-color 0.05s,transform 0.05s,box-shadow 0.05s;}
+.db.on{
+  background:linear-gradient(145deg,rgba(77,184,255,0.35),rgba(77,184,255,0.2));
+  border-color:#4db8ff;color:#fff;
+  box-shadow:0 0 20px rgba(77,184,255,0.5),0 4px 12px rgba(0,0,0,0.4);
+  transform:scale(0.93);}
+.db-mid{grid-area:mid;border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;}
+
+/* Power-up tray */
+#putray{position:fixed;z-index:10;right:10px;bottom:calc(74px*2 + 22px);display:flex;flex-direction:column;align-items:center;gap:4px;}
+.puslot{width:58px;height:58px;border-radius:14px;border:2px solid rgba(255,255,255,0.12);
+  background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;
+  font-size:1.8rem;-webkit-tap-highlight-color:transparent;transition:all 0.15s;}
+.puslot.active{border-color:gold;background:rgba(255,215,0,0.15);
+  box-shadow:0 0 18px rgba(255,215,0,0.5),0 0 40px rgba(255,215,0,0.2);}
+.pulbl{font-size:0.38rem;color:#444;letter-spacing:1px;text-transform:uppercase;text-align:center;max-width:62px;}
+
+/* Toast */
+#toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:30;
+  background:rgba(8,8,28,0.95);border:1px solid rgba(77,184,255,0.3);border-radius:22px;
+  padding:8px 20px;font-size:0.88rem;font-weight:700;color:#fff;
+  pointer-events:none;opacity:0;transition:opacity 0.25s;white-space:nowrap;
+  backdrop-filter:blur(8px);}
+
+/* Result */
+.rsrow{display:flex;border:1px solid #1e1e40;border-radius:10px;overflow:hidden;background:rgba(10,10,30,0.8);}
+.rscard{padding:16px 28px;text-align:center;}
+.rscard:first-child{border-right:1px solid #1e1e40;}
+.rsnum{font-size:2.4rem;font-weight:900;}
+.rslbl{font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
+</style>
+</head>
+<body>
+
+<div class="screen" id="screen-menu">
+  <div class="gtitle">BORDER WARS</div>
+  <div class="gsub">3D Skate Territory</div>
+  <button class="gbtn" onclick="startGame()">🛹 &nbsp;Play vs CPU</button>
+  <button class="gbtn" onclick="inviteFriend()">🔗 &nbsp;Invite a Friend</button>
+  <button class="gbtn" onclick="findMatch()">🌍 &nbsp;Find Online Match</button>
+</div>
+
+<div class="screen hidden" id="screen-wait">
+  <div class="gtitle" style="font-size:1.6rem">ONLINE</div>
+  <div id="wait-msg" style="color:#aaa;font-size:.9rem;text-align:center;padding:0 24px">Connecting…</div>
+  <div id="wait-box" class="hidden" style="display:flex;flex-direction:column;align-items:center;gap:14px">
+    <input id="wait-link" readonly style="width:260px;padding:10px;border-radius:8px;border:1px solid #333;background:#0a0a1e;color:#4db8ff;text-align:center;font-size:.8rem">
+    <button class="gbtn" onclick="shareLink()">📋 &nbsp;Share / Copy Link</button>
+  </div>
+  <button class="gbtn grey" onclick="cancelWait()">Cancel</button>
+</div>
+
+<div class="screen hidden" id="screen-over">
+  <div style="font-size:2rem;font-weight:900;text-align:center" id="over-title"></div>
+  <div class="rsrow">
+    <div class="rscard"><div class="rsnum" id="over-p" style="color:#4db8ff">0</div><div class="rslbl" style="color:#4db8ff">You</div></div>
+    <div class="rscard"><div class="rsnum" id="over-c" style="color:#ff4d4d">0</div><div class="rslbl" id="over-cl" style="color:#ff4d4d">CPU</div></div>
+  </div>
+  <button class="gbtn" id="btn-again" onclick="playAgain()">&#x27F3; &nbsp;Play Again</button>
+  <button class="gbtn grey" onclick="goMenu()">&#x21A9; &nbsp;Main Menu</button>
+</div>
+
+<div id="hud" class="hidden">
+  <div class="hc hl"><div class="hlbl" style="color:#4db8ff">&#x25CF; YOU</div><div class="hval" id="hud-p" style="color:#4db8ff">0</div></div>
+  <div class="hmid"><div class="hmid-l">boxes left</div><div class="hmid-v" id="hud-b">100</div></div>
+  <div class="hc hr"><div class="hlbl" style="color:#ff4d4d"><span id="hud-cl">CPU</span> &#x25CF;</div><div class="hval" id="hud-c" style="color:#ff4d4d">0</div></div>
+</div>
+
+<div id="putray" class="hidden">
+  <div class="puslot" id="puslot"><span id="puicon">&#x1F381;</span></div>
+  <div class="pulbl" id="pulbl">no power</div>
+</div>
+
+<div id="dpad" class="hidden">
+  <div class="db" id="db-up"    style="grid-area:up"    onpointerdown="btnDown('fwd')" onpointerup="btnUp('fwd')" onpointerleave="btnUp('fwd')">&#x25B2;</div>
+  <div class="db" id="db-left"  style="grid-area:left"  onpointerdown="btnDown('lft')" onpointerup="btnUp('lft')" onpointerleave="btnUp('lft')">&#x25C4;</div>
+  <div class="db-mid"><div style="width:10px;height:10px;border-radius:50%;background:rgba(77,184,255,0.35)"></div></div>
+  <div class="db" id="db-right" style="grid-area:right" onpointerdown="btnDown('rgt')" onpointerup="btnUp('rgt')" onpointerleave="btnUp('rgt')">&#x25BA;</div>
+  <div class="db" id="db-down"  style="grid-area:down"  onpointerdown="btnDown('bck')" onpointerup="btnUp('bck')" onpointerleave="btnUp('bck')">&#x25BC;</div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+// ═══════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════
+let ME=1,MP=false,OPPN='CPU';
+let rng=Math.random;
+function seedRng(seed){let a=seed>>>0;rng=function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const COLS=10, ROWS=10, CELL=4;
+const BW=COLS*CELL, BH=ROWS*CELL;
+const PSPD=8, CSPD=8; // same speed — fair fight
+
+function wx(v){ return v-BW/2; }
+function wz(v){ return v-BH/2; }
+
+const DIRS={ N:{dx:0,dz:-1}, S:{dx:0,dz:1}, W:{dx:-1,dz:0}, E:{dx:1,dz:0} };
+const OPP  ={ N:'S',S:'N',W:'E',E:'W' };
+const TLEFT={ N:'W',W:'S',S:'E',E:'N' };
+const TRGHT={ N:'E',E:'S',S:'W',W:'N' };
+
+// ═══════════════════════════════════════
+// POWER-UPS
+// ═══════════════════════════════════════
+const PU_DEFS={
+  rubber:    {icon:'🧹',name:'Rubber',      weight:35},
+  bucket:    {icon:'🪣',name:'Full Row',    weight:32},
+  speed:     {icon:'⚡',name:'Speed Boost', weight:28},
+  megabucket:{icon:'🌊',name:'MEGA PAINT',  weight:3 },
+};
+const PU_POOL=[];
+for(const[t,d]of Object.entries(PU_DEFS))for(let i=0;i<d.weight;i++)PU_POOL.push(t);
+const MEGA_RUBBER_CHANCE=0.05;
+
+// ═══════════════════════════════════════
+// THREE.JS
+// ═══════════════════════════════════════
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x08081a);
+scene.fog=new THREE.Fog(0x08081a,50,110);
+
+const camera=new THREE.PerspectiveCamera(58,1,0.1,200);
+function onResize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
+onResize(); window.addEventListener('resize',onResize);
+
+// Improved lighting
+scene.add(new THREE.AmbientLight(0xffffff,0.6));
+const sun=new THREE.DirectionalLight(0xffeedd,1.2);
+sun.position.set(20,40,15); sun.castShadow=true;
+sun.shadow.mapSize.width=2048; sun.shadow.mapSize.height=2048;
+sun.shadow.camera.left=-35; sun.shadow.camera.right=35;
+sun.shadow.camera.top=35; sun.shadow.camera.bottom=-35;
+sun.shadow.camera.far=120; sun.shadow.bias=-0.001;
+scene.add(sun);
+// Rim light from opposite side
+const rim=new THREE.DirectionalLight(0x4466ff,0.35);
+rim.position.set(-15,20,-10); scene.add(rim);
+const pGlow=new THREE.PointLight(0x4db8ff,5,18); scene.add(pGlow);
+const cGlow=new THREE.PointLight(0xff4d4d,4,18); scene.add(cGlow);
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+function kH(c,r){return'H'+c+'_'+r;}
+function kV(c,r){return'V'+c+'_'+r;}
+function kC(c,r){return c+'_'+r;}
+
+let edgeOwner={},cellOwner={},cellPU={},collectedPU=new Set();
+
+function initState(){
+  edgeOwner={};cellOwner={};cellPU={};collectedPU=new Set();
+  for(let r=0;r<=ROWS;r++)for(let c=0;c<COLS;c++) edgeOwner[kH(c,r)]=0;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<=COLS;c++)edgeOwner[kV(c,r)]=0;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) cellOwner[kC(c,r)]=0;
+  const placed=new Set();
+  while(placed.size<5){
+    const c=Math.floor(rng()*COLS),r=Math.floor(rng()*ROWS),k=kC(c,r);
+    if(!placed.has(k)){placed.add(k);cellPU[k]=PU_POOL[Math.floor(rng()*PU_POOL.length)];}
+  }
+  if(rng()<MEGA_RUBBER_CHANCE){
+    for(let i=0;i<20;i++){
+      const c=Math.floor(rng()*COLS),r=Math.floor(rng()*ROWS),k=kC(c,r);
+      if(!cellPU[k]){cellPU[k]='megarubber';break;}
+    }
+  }
+}
+
+// ═══════════════════════════════════════
+// BOARD
+// ═══════════════════════════════════════
+let boardGroup=null,cellMeshes={},edgeMeshes={},puStickers={};
+
+function buildBoard(){
+  if(boardGroup){boardGroup.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material&&!Array.isArray(o.material))o.material.dispose();});scene.remove(boardGroup);}
+  boardGroup=new THREE.Group();scene.add(boardGroup);
+  cellMeshes={};edgeMeshes={};puStickers={};
+
+  // Base plate — sits below everything
+  const surround=new THREE.Mesh(
+    new THREE.BoxGeometry(BW+2,0.25,BH+2),
+    new THREE.MeshPhongMaterial({color:0x0a0a20,shininess:10})
+  );
+  surround.position.set(0,-0.13,0);surround.receiveShadow=true;boardGroup.add(surround);
+
+  // Cell tiles — solid visible squares, checkerboard grey
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const col=(c+r)%2===0 ? 0x222236 : 0x1a1a2c;
+    const m=new THREE.Mesh(
+      new THREE.PlaneGeometry(CELL-0.14, CELL-0.14),
+      new THREE.MeshPhongMaterial({color:col, shininess:30, specular:new THREE.Color(0x111122)})
+    );
+    m.rotation.x=-Math.PI/2;
+    m.position.set(wx(c*CELL+CELL/2), 0.01, wz(r*CELL+CELL/2));
+    m.receiveShadow=true;
+    boardGroup.add(m); cellMeshes[kC(c,r)]=m;
+  }
+
+  // Grid lines — clearly visible, rendered above cell tiles
+  const pts=[];
+  for(let r=0;r<=ROWS;r++){pts.push(wx(0),0.06,wz(r*CELL), wx(BW),0.06,wz(r*CELL));}
+  for(let c=0;c<=COLS;c++){pts.push(wx(c*CELL),0.06,wz(0), wx(c*CELL),0.06,wz(BH));}
+  const lg=new THREE.BufferGeometry();
+  lg.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+  boardGroup.add(new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:0x4444aa})));
+
+  // Vertex dots
+  const dg=new THREE.SphereGeometry(0.12,8,8);
+  for(let r=0;r<=ROWS;r++)for(let c=0;c<=COLS;c++){
+    const d=new THREE.Mesh(dg,new THREE.MeshBasicMaterial({color:0x5555cc}));
+    d.position.set(wx(c*CELL),0.12,wz(r*CELL));boardGroup.add(d);
+  }
+
+  // Edge meshes — flat planes rendered above grid lines
+  for(let r=0;r<=ROWS;r++)for(let c=0;c<COLS;c++){
+    const mat=new THREE.MeshBasicMaterial({color:0x4db8ff,transparent:true,opacity:0});
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(CELL,0.34),mat);
+    m.rotation.x=-Math.PI/2;
+    m.position.set(wx(c*CELL+CELL/2),0.07,wz(r*CELL));
+    boardGroup.add(m);edgeMeshes[kH(c,r)]=m;
+  }
+  for(let r=0;r<ROWS;r++)for(let c=0;c<=COLS;c++){
+    const mat=new THREE.MeshBasicMaterial({color:0x4db8ff,transparent:true,opacity:0});
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(0.34,CELL),mat);
+    m.rotation.x=-Math.PI/2;
+    m.position.set(wx(c*CELL),0.07,wz(r*CELL+CELL/2));
+    boardGroup.add(m);edgeMeshes[kV(c,r)]=m;
+  }
+}
+
+function makeEmojiTex(emoji){
+  const cv=document.createElement('canvas');cv.width=cv.height=128;
+  const cx=cv.getContext('2d');cx.font='80px serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(emoji,64,68);
+  return new THREE.CanvasTexture(cv);
+}
+function revealPUSticker(c,r,type){
+  const k=kC(c,r);if(puStickers[k])return;
+  const def=PU_DEFS[type]||{icon:'💣'};
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(CELL*0.6,CELL*0.6),
+    new THREE.MeshBasicMaterial({map:makeEmojiTex(def.icon),transparent:true,depthWrite:false,side:THREE.DoubleSide}));
+  m.rotation.x=-Math.PI/2;m.position.set(wx(c*CELL+CELL/2),0.09,wz(r*CELL+CELL/2));
+  boardGroup.add(m);puStickers[k]=m;
+}
+
+// ═══════════════════════════════════════
+// EDGE / CELL PAINT
+// ═══════════════════════════════════════
+function paintEdge(key,owner){
+  edgeOwner[key]=owner;
+  const m=edgeMeshes[key];if(!m)return;
+  m.material.color.set(owner===ME?0x4db8ff:0xff4d4d);
+  m.material.opacity=1;m.material.transparent=false;m.material.needsUpdate=true;
+}
+function eraseEdge(key){
+  edgeOwner[key]=0;
+  const m=edgeMeshes[key];if(!m)return;
+  m.material.opacity=0;m.material.transparent=true;m.material.needsUpdate=true;
+}
+function setCell(c,r,owner){
+  cellOwner[kC(c,r)]=owner;
+  const m=cellMeshes[kC(c,r)];if(!m)return;
+  if(owner===0){
+    m.material.color.set((c+r)%2===0?0x222236:0x1a1a2c);
+    m.material.emissive=new THREE.Color(0);m.material.emissiveIntensity=0;
+  }else if(owner===ME){
+    // Bright blue — clearly visible player capture
+    m.material.color.set(0x1144aa);
+    m.material.emissive=new THREE.Color(0x1a5acc);m.material.emissiveIntensity=0.6;
+  }else{
+    // Bright red — clearly visible CPU capture
+    m.material.color.set(0xaa1122);
+    m.material.emissive=new THREE.Color(0xcc2233);m.material.emissiveIntensity=0.6;
+  }
+  m.material.needsUpdate=true;
+}
+
+function checkCells(){
+  const cap=[];
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(cellOwner[kC(c,r)]!==0)continue;
+    const t=edgeOwner[kH(c,r)]||0,b=edgeOwner[kH(c,r+1)]||0,l=edgeOwner[kV(c,r)]||0,ri=edgeOwner[kV(c+1,r)]||0;
+    let w=0;
+    if(t===1&&b===1&&l===1&&ri===1)w=1;
+    else if(t===2&&b===2&&l===2&&ri===2)w=2;
+    if(w){setCell(c,r,w);cap.push({c,r,owner:w});}
+  }
+  return cap;
+}
+function countCells(){
+  let p=0,c=0,blank=0;
+  for(let r=0;r<ROWS;r++)for(let col=0;col<COLS;col++){
+    const v=cellOwner[kC(col,r)];
+    if(v===1)p++;else if(v===2)c++;else blank++;
+  }
+  return{p,c,blank};
+}
+
+// ═══════════════════════════════════════
+// SKATER MESH — improved with better proportions and detail
+// ═══════════════════════════════════════
+function makeSkater(color){
+  const G=new THREE.Group();
+  const M=(col,shi=50,spec=0x222222)=>new THREE.MeshPhongMaterial({color:col,shininess:shi,specular:new THREE.Color(spec)});
+  const body=M(color,80,0x333355),skin=M(0xf2c090,25),dark=M(0x0e0e1e,100,0x333333);
+  const pant=M(0x18182e,15),shoe=M(0x1a1a1a,120,0x444444),cap=M(color,60);
+  const wheel=M(0x202020,150,0x555555),wht=new THREE.MeshBasicMaterial({color:0xffffff});
+  const chrome=M(0x888888,200,0xaaaaaa);
+
+  // Skateboard
+  const deck=new THREE.Mesh(new THREE.BoxGeometry(0.65,0.07,1.7),dark);
+  deck.position.set(0,0.09,0);G.add(deck);
+  // Grip tape texture (darker strip on top)
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(0.61,0.01,1.6),M(0x090909,5));
+  grip.position.set(0,0.13,0);G.add(grip);
+  // Nose/tail kick
+  [[-0.85,0.26],[ 0.85,-0.26]].forEach(([z,rx])=>{
+    const k=new THREE.Mesh(new THREE.BoxGeometry(0.65,0.08,0.24),dark);
+    k.position.set(0,0.13,z);k.rotation.x=rx*0.35;G.add(k);
+  });
+  // Trucks
+  const tkg=new THREE.BoxGeometry(0.65,0.05,0.12);
+  [[0.6],[- 0.6]].forEach(([z])=>{
+    const t=new THREE.Mesh(tkg,chrome);t.position.set(0,0.055,z);G.add(t);
+  });
+  // Wheels
+  const wg=new THREE.CylinderGeometry(0.11,0.11,0.14,14);
+  [[0.3,0.6],[-0.3,0.6],[0.3,-0.6],[-0.3,-0.6]].forEach(([x,z])=>{
+    const w=new THREE.Mesh(wg,wheel);w.rotation.z=Math.PI/2;w.position.set(x,0.04,z);G.add(w);
+    // wheel highlight ring
+    const wr=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.01,14),M(0x444444,200));
+    wr.rotation.z=Math.PI/2;wr.position.set(x>0?x+0.05:x-0.05,0.04,z);G.add(wr);
+  });
+
+  // Legs
+  const lg=new THREE.CylinderGeometry(0.095,0.085,0.44,10);
+  const lLeg=new THREE.Mesh(lg,pant);lLeg.position.set(-0.13,0.46,0.08);lLeg.rotation.z=0.1;G.add(lLeg);
+  const rLeg=new THREE.Mesh(lg,pant);rLeg.position.set(0.13,0.46,-0.11);rLeg.rotation.z=-0.08;rLeg.rotation.x=0.13;G.add(rLeg);
+  // Knee pads
+  [[- 0.15,0.3,0.1],[0.15,0.3,-0.12]].forEach(([x,y,z])=>{
+    const kp=new THREE.Mesh(new THREE.SphereGeometry(0.1,8,8),M(0x333355,60));kp.position.set(x,y,z);G.add(kp);
+  });
+  // Shoes
+  const sg=new THREE.BoxGeometry(0.18,0.09,0.32);
+  const lSh=new THREE.Mesh(sg,shoe);lSh.position.set(-0.15,0.22,0.14);G.add(lSh);
+  const rSh=new THREE.Mesh(sg,shoe);rSh.position.set(0.15,0.22,-0.15);G.add(rSh);
+
+  // Torso
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.46,0.3),body);
+  torso.position.set(0,0.88,0);torso.rotation.x=-0.1;G.add(torso);
+  // Shirt details
+  const stripe=new THREE.Mesh(new THREE.BoxGeometry(0.41,0.07,0.31),wht);stripe.position.set(0,0.91,0);G.add(stripe);
+  const stripe2=new THREE.Mesh(new THREE.BoxGeometry(0.41,0.04,0.31),M(color,40));stripe2.position.set(0,0.84,0);G.add(stripe2);
+
+  // Arms
+  const ag=new THREE.CylinderGeometry(0.075,0.065,0.4,10);
+  const lA=new THREE.Mesh(ag,body);lA.position.set(-0.28,0.93,0.08);lA.rotation.z=0.6;lA.rotation.x=-0.18;G.add(lA);
+  const rA=new THREE.Mesh(ag,body);rA.position.set(0.28,0.92,-0.08);rA.rotation.z=-0.55;rA.rotation.x=0.28;G.add(rA);
+  // Hands
+  const hg=new THREE.SphereGeometry(0.09,9,9);
+  const lH=new THREE.Mesh(hg,skin);lH.position.set(-0.43,0.77,0.14);G.add(lH);
+  const rH=new THREE.Mesh(hg,skin);rH.position.set(0.43,0.77,-0.14);G.add(rH);
+
+  // Head
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.2,14,14),skin);head.position.set(0,1.26,0);G.add(head);
+  // Helmet (instead of cap — more sporty)
+  const helm=new THREE.Mesh(new THREE.SphereGeometry(0.23,14,10,0,Math.PI*2,0,Math.PI*0.6),cap);
+  helm.position.set(0,1.3,0.02);G.add(helm);
+  const brim=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.26,0.04,14),cap);
+  brim.position.set(0,1.22,0);G.add(brim);
+  // Visor stripe
+  const visor=new THREE.Mesh(new THREE.BoxGeometry(0.48,0.04,0.1),M(0x000000,200));
+  visor.position.set(0,1.3,-0.21);G.add(visor);
+  // Eyes
+  const em=new THREE.MeshBasicMaterial({color:0x111111});
+  const eg=new THREE.SphereGeometry(0.042,7,7);
+  const lEy=new THREE.Mesh(eg,em);lEy.position.set(-0.075,1.27,-0.17);G.add(lEy);
+  const rEy=new THREE.Mesh(eg,em);rEy.position.set(0.075,1.27,-0.17);G.add(rEy);
+
+  G.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  return G;
+}
+
+// ═══════════════════════════════════════
+// ENTITY
+// ═══════════════════════════════════════
+function makeEntity(sc,sr,owner,color){
+  const mesh=makeSkater(color);scene.add(mesh);
+  const trail=new THREE.Mesh(new THREE.PlaneGeometry(1,1),
+    new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,depthWrite:false,transparent:true,opacity:0.85}));
+  trail.rotation.x=-Math.PI/2;trail.visible=false;scene.add(trail);
+  return{owner,color,mesh,trail,
+    col:sc,row:sr,
+    rX:wx(sc*CELL),rZ:wz(sr*CELL),
+    dir:null,wantDir:null,
+    segCol:sc,segRow:sr,
+    travelAcc:0,
+    speedMult:1.0,speedTimer:0,
+    heldPU:null};
+}
+
+// ═══════════════════════════════════════
+// MOVEMENT — integer col/row, no float drift
+// ═══════════════════════════════════════
+function stepEntity(e,speed,dt){
+  if(e.speedTimer>0){e.speedTimer-=dt;if(e.speedTimer<=0)e.speedMult=1.0;}
+
+  // At a vertex: pick direction
+  if(e.travelAcc===0){
+    // Try wantDir first (player request), then continue current dir
+    const candidates=e.wantDir?[e.wantDir,e.dir]:[e.dir];
+    let chosen=null;
+    for(const td of candidates){
+      if(!td)continue;
+      if(td===OPP[e.dir]&&e.dir)continue; // no 180°
+      const dd=DIRS[td];
+      if(e.col+dd.dx>=0&&e.col+dd.dx<=COLS&&e.row+dd.dz>=0&&e.row+dd.dz<=ROWS){
+        chosen=td;break;
+      }
+    }
+    e.wantDir=null;
+    if(chosen&&chosen!==e.dir){commitSeg(e,e.col,e.row);e.segCol=e.col;e.segRow=e.row;}
+    e.dir=chosen;
+  }
+
+  if(!e.dir){updateTrail(e);updateRender(e,speed,dt);return;}
+
+  e.travelAcc+=speed*e.speedMult*dt;
+
+  if(e.travelAcc>=CELL){
+    const overflow=e.travelAcc-CELL;
+    e.travelAcc=0;
+    const d=DIRS[e.dir];
+    e.col+=d.dx;e.row+=d.dz;
+    commitSeg(e,e.col,e.row);
+
+    // Check wall for NEXT step
+    const nc=e.col+d.dx,nr=e.row+d.dz;
+    const wall=(nc<0||nc>COLS||nr<0||nr>ROWS);
+
+    // Try wantDir at this new vertex
+    if(e.wantDir&&e.wantDir!==OPP[e.dir]){
+      const ndd=DIRS[e.wantDir];
+      if(e.col+ndd.dx>=0&&e.col+ndd.dx<=COLS&&e.row+ndd.dz>=0&&e.row+ndd.dz<=ROWS){
+        commitSeg(e,e.col,e.row);e.segCol=e.col;e.segRow=e.row;
+        e.dir=e.wantDir;
+      }
+      e.wantDir=null;
+    }
+
+    // Recheck wall with possibly new direction
+    if(wall){
+      const d2=DIRS[e.dir];
+      if(e.col+d2.dx<0||e.col+d2.dx>COLS||e.row+d2.dz<0||e.row+d2.dz>ROWS){
+        e.dir=null;e.travelAcc=0;updateTrail(e);updateRender(e,speed,dt);return;
+      }
+    }
+
+    if(e.dir)e.travelAcc=Math.min(overflow,CELL-0.001);
+  }
+
+  updateTrail(e);
+  updateRender(e,speed,dt);
+}
+
+function updateRender(e,speed,dt){
+  const d=e.dir?DIRS[e.dir]:{dx:0,dz:0};
+  const tx=wx(e.col*CELL+d.dx*e.travelAcc);
+  const tz=wz(e.row*CELL+d.dz*e.travelAcc);
+  const lf=Math.min(speed*e.speedMult*dt*10,1);
+  e.rX+=(tx-e.rX)*lf;e.rZ+=(tz-e.rZ)*lf;
+  e.mesh.position.x=e.rX;e.mesh.position.z=e.rZ;
+  e.mesh.position.y=0.06+Math.abs(Math.sin(time*12))*0.028;
+  if(e.dir){
+    const tgt={N:Math.PI,S:0,W:-Math.PI/2,E:Math.PI/2}[e.dir];
+    let diff=tgt-e.mesh.rotation.y;
+    while(diff>Math.PI)diff-=Math.PI*2;while(diff<-Math.PI)diff+=Math.PI*2;
+    e.mesh.rotation.y+=diff*0.22;
+    e.mesh.rotation.z=Math.sin(time*10)*0.02;
+  }
+}
+
+function commitSeg(e,toCol,toRow){
+  const fc=e.segCol,fr=e.segRow;
+  if(fc===toCol&&fr===toRow)return;
+  if(fr===toRow){const mn=Math.min(fc,toCol),mx=Math.max(fc,toCol);for(let c=mn;c<mx;c++)paintEdge(kH(c,fr),e.owner);}
+  else if(fc===toCol){const mn=Math.min(fr,toRow),mx=Math.max(fr,toRow);for(let r=mn;r<mx;r++)paintEdge(kV(fc,r),e.owner);}
+  e.segCol=toCol;e.segRow=toRow;
+}
+
+function updateTrail(e){
+  if(!e.dir){e.trail.visible=false;return;}
+  const sx=wx(e.segCol*CELL),sz=wz(e.segRow*CELL),cx=e.rX,cz=e.rZ;
+  const len=Math.abs(cx-sx)+Math.abs(cz-sz);
+  if(len<0.02){e.trail.visible=false;return;}
+  e.trail.visible=true;
+  e.trail.position.set((sx+cx)/2,0.06,(sz+cz)/2);
+  const d=DIRS[e.dir];
+  if(d.dx!==0)e.trail.scale.set(len,1,0.3);else e.trail.scale.set(0.3,1,len);
+}
+
+// ═══════════════════════════════════════
+// POWER-UPS
+// ═══════════════════════════════════════
+function onBoxCaptured(c,r,captorOwner){
+  const k=kC(c,r);
+  if(!cellPU[k]||collectedPU.has(k))return;
+  collectedPU.add(k);
+  const type=cellPU[k];
+  revealPUSticker(c,r,type);
+  setTimeout(()=>applyPU(captorOwner,type),350);
+}
+
+function applyPU(owner,type){
+  const e=ents[owner];
+  const otherOwner=3-owner;
+
+  if(type==='rubber'){
+    // Erase opponent's edges in the row the entity is currently on
+    // Then un-capture any boxes that lose a completed side
+    const targetRow=e.row;
+    // Erase ALL edges of every cell in that row that belong to opponent
+    for(let c=0;c<COLS;c++){
+      if(edgeOwner[kH(c,targetRow)]===otherOwner)eraseEdge(kH(c,targetRow));
+      if(edgeOwner[kH(c,targetRow+1)]===otherOwner)eraseEdge(kH(c,targetRow+1));
+      if(edgeOwner[kV(c,targetRow)]===otherOwner)eraseEdge(kV(c,targetRow));
+      if(edgeOwner[kV(c+1,targetRow)]===otherOwner)eraseEdge(kV(c+1,targetRow));
+    }
+    if(edgeOwner[kV(COLS,targetRow)]===otherOwner)eraseEdge(kV(COLS,targetRow));
+    // Un-capture all cells in that row that belong to opponent
+    for(let c=0;c<COLS;c++){
+      if(cellOwner[kC(c,targetRow)]===otherOwner)setCell(c,targetRow,0);
+    }
+    // Also un-capture any other opponent cells that lost a border edge
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      if(cellOwner[kC(c,r)]!==otherOwner)continue;
+      const t=edgeOwner[kH(c,r)]||0,b=edgeOwner[kH(c,r+1)]||0,l=edgeOwner[kV(c,r)]||0,ri=edgeOwner[kV(c+1,r)]||0;
+      if(!(t===otherOwner&&b===otherOwner&&l===otherOwner&&ri===otherOwner))setCell(c,r,0);
+    }
+    toast(owner===ME?'🧹 Erased '+OPPN+' row '+targetRow+'!':'🧹 '+OPPN+' erased your row '+targetRow+'!');
+  }
+  else if(type==='bucket'){
+    const row=Math.max(0,Math.min(ROWS-1,e.row));
+    for(let c=0;c<COLS;c++){
+      paintEdge(kH(c,row),owner);paintEdge(kH(c,row+1),owner);
+      paintEdge(kV(c,row),owner);paintEdge(kV(c+1,row),owner);
+    }
+    paintEdge(kV(COLS,row),owner);
+    for(let c=0;c<COLS;c++)if(cellOwner[kC(c,row)]===0)setCell(c,row,owner);
+    toast(owner===ME?'🪣 Full row captured!':'🪣 '+OPPN+' captured a full row!');
+  }
+  else if(type==='speed'){
+    e.speedMult=1.8;e.speedTimer=7;
+    toast(owner===ME?'⚡ Speed Boost! 7 sec!':'⚡ '+OPPN+' Speed Boost!');
+  }
+  else if(type==='megabucket'){
+    for(let r=0;r<=ROWS;r++)for(let c=0;c<COLS;c++)paintEdge(kH(c,r),owner);
+    for(let r=0;r<ROWS;r++)for(let c=0;c<=COLS;c++)paintEdge(kV(c,r),owner);
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(cellOwner[kC(c,r)]===0)setCell(c,r,owner);
+    toast(owner===ME?'🌊 MEGA PAINT! Board yours!':'🌊 '+OPPN+' MEGA PAINT!');
+  }
+  else if(type==='megarubber'){
+    for(const key of Object.keys(edgeOwner))if(edgeOwner[key]===otherOwner)eraseEdge(key);
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(cellOwner[kC(c,r)]===otherOwner)setCell(c,r,0);
+    toast(owner===ME?'💣 MEGA ERASE! '+OPPN+' wiped!':'💣 '+OPPN+' MEGA ERASED you!');
+  }
+
+  if(owner===ME)flashPU(type);
+}
+
+function flashPU(type){
+  const def=PU_DEFS[type]||{icon:'💣',name:'MEGA ERASE'};
+  document.getElementById('puicon').textContent=def.icon;
+  document.getElementById('pulbl').textContent=def.name;
+  document.getElementById('puslot').classList.add('active');
+  setTimeout(()=>{document.getElementById('puslot').classList.remove('active');document.getElementById('puicon').textContent='🎁';document.getElementById('pulbl').textContent='no power';},3000);
+}
+
+let toastT=null;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.style.opacity='1';
+  if(toastT)clearTimeout(toastT);
+  toastT=setTimeout(()=>el.style.opacity='0',2600);
+}
+
+// ═══════════════════════════════════════
+// CPU AI — box-focused, competitive
+// ═══════════════════════════════════════
+let cpuAiTimer=0;
+
+function getSides(c,r){
+  const s=[edgeOwner[kH(c,r)]||0,edgeOwner[kH(c,r+1)]||0,edgeOwner[kV(c,r)]||0,edgeOwner[kV(c+1,r)]||0];
+  return{cpu:s.filter(v=>v===2).length,player:s.filter(v=>v===1).length,blank:s.filter(v=>v===0).length,owned:s};
+}
+function dirToward(fc,fr,tc,tr){
+  const verts=[{c:tc,r:tr},{c:tc+1,r:tr},{c:tc,r:tr+1},{c:tc+1,r:tr+1}];
+  let near=verts[0],md=Infinity;
+  for(const v of verts){const d=Math.abs(v.c-fc)+Math.abs(v.r-fr);if(d<md){md=d;near=v;}}
+  const dc=near.c-fc,dr=near.r-fr;
+  if(dc===0&&dr===0)return null;
+  if(Math.abs(dc)>=Math.abs(dr))return dc>0?'E':'W';
+  return dr>0?'S':'N';
+}
+
+function cpuChooseDir(){
+  const col=cpu.col,row=cpu.row;
+  function canGo(d){
+    if(!d||d===OPP[cpu.dir])return false;
+    const dd=DIRS[d];
+    return col+dd.dx>=0&&col+dd.dx<=COLS&&row+dd.dz>=0&&row+dd.dz<=ROWS;
+  }
+  function best(dir){return dir&&canGo(dir)?dir:null;}
+
+  // P1: Complete MY box with 3 cpu sides — highest priority
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(cellOwner[kC(c,r)]!==0)continue;
+    const s=getSides(c,r);
+    if(s.cpu===3&&s.blank===1){const d=best(dirToward(col,row,c,r));if(d)return d;}
+  }
+
+  // P2: Block player completing a box (steal the 4th side)
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(cellOwner[kC(c,r)]!==0)continue;
+    const s=getSides(c,r);
+    if(s.player===3&&s.blank===1){const d=best(dirToward(col,row,c,r));if(d)return d;}
+  }
+
+  // P3: Build boxes — prioritise cells where CPU already has 2 sides (close to completion)
+  // Score = cpu_sides * 25 + (1/dist) * 10 — strongly prefer nearly-complete boxes nearby
+  let topBox=null,topScore=-Infinity;
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(cellOwner[kC(c,r)]!==0)continue;
+    const s=getSides(c,r);
+    if(s.cpu===0&&s.player===0)continue; // pure blank, lower priority
+    const dist=Math.abs(c-col)+Math.abs(r-row)+1;
+    // Heavily reward cells with cpu edges already, penalise far cells
+    const score=s.cpu*25+s.blank*2-(dist*2);
+    if(score>topScore){topScore=score;topBox={c,r};}
+  }
+  if(topBox){const d=best(dirToward(col,row,topBox.c,topBox.r));if(d)return d;}
+
+  // P4: Claim blank cells — find nearest completely blank cell and start building
+  let nearBlank=null,nearDist=Infinity;
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(cellOwner[kC(c,r)]!==0)continue;
+    const dist=Math.abs(c-col)+Math.abs(r-row);
+    if(dist<nearDist){nearDist=dist;nearBlank={c,r};}
+  }
+  if(nearBlank){const d=best(dirToward(col,row,nearBlank.c,nearBlank.r));if(d)return d;}
+
+  // Fallback
+  for(const d of['E','S','W','N'])if(canGo(d))return d;
+  return cpu.dir||'W';
+}
+
+function updateCPU(dt){
+  cpuAiTimer-=dt;
+  if(cpuAiTimer<=0){
+    const nd=cpuChooseDir();if(nd)cpu.wantDir=nd;
+    // Decide very frequently so CPU is always responsive
+    cpuAiTimer=0.04+Math.random()*0.06;
+  }
+  stepEntity(cpu,CSPD,dt);
+}
+
+// ═══════════════════════════════════════
+// CAMERA
+// ═══════════════════════════════════════
+const camCur=new THREE.Vector3(),camLook=new THREE.Vector3();
+let camFacing='E';
+
+function updateCamera(dt){
+  if(!player)return;
+  const dir=player.dir||camFacing;camFacing=dir;
+  const beh=DIRS[OPP[dir]];
+  const px=player.rX,pz=player.rZ;
+  camCur.lerp(new THREE.Vector3(px+beh.dx*14,9.5,pz+beh.dz*14),Math.min(dt*5,1));
+  camera.position.copy(camCur);
+  const ah=DIRS[dir];
+  camLook.lerp(new THREE.Vector3(px+ah.dx*4,0,pz+ah.dz*4),Math.min(dt*7,1));
+  camera.lookAt(camLook);
+  pGlow.position.set(px,3,pz);
+  cGlow.position.set(cpu.rX,3,cpu.rZ);
+}
+
+// ═══════════════════════════════════════
+// D-PAD — screen-relative, very responsive
+// ═══════════════════════════════════════
+function screenDir(s){
+  const f=player.dir||camFacing||'E';
+  if(s==='fwd')return f;
+  if(s==='bck')return OPP[f];
+  if(s==='lft')return TLEFT[f];
+  if(s==='rgt')return TRGHT[f];
+  return f;
+}
+function btnDown(s){
+  if(!player)return;
+  const wd=screenDir(s);
+  if(player.dir&&wd===OPP[player.dir])return; // no 180°
+  if(MP){const tick=simTick+DELAY;(inputs[tick]=inputs[tick]||{})[ME]=wd;net({t:'in',tick:tick,dir:wd});}
+  else player.wantDir=wd;
+  const ids={fwd:'db-up',bck:'db-down',lft:'db-left',rgt:'db-right'};
+  document.getElementById(ids[s])?.classList.add('on');
+}
+function btnUp(s){
+  const ids={fwd:'db-up',bck:'db-down',lft:'db-left',rgt:'db-right'};
+  document.getElementById(ids[s])?.classList.remove('on');
+}
+
+// ═══════════════════════════════════════
+// GAME LOOP — fixed timestep (needed so both online players simulate identically)
+// ═══════════════════════════════════════
+const STEP=1/60, DELAY=6; // DELAY = input delay in ticks (100 ms)
+let clock=null,running=false,time=0,acc=0,simTick=0;
+let ents={1:null,2:null},player=null,cpu=null;
+let inputs={},oppCommit=0;
+
+function simStep(){
+  if(MP){
+    const inp=inputs[simTick];
+    if(inp){for(const k of[1,2])if(inp[k])ents[k].wantDir=inp[k];delete inputs[simTick];}
+  }
+  stepEntity(ents[1],PSPD,STEP);
+  if(MP)stepEntity(ents[2],PSPD,STEP);else updateCPU(STEP);
+
+  const newly=checkCells();
+  for(const{c,r,owner}of newly){
+    const k=kC(c,r);
+    if(cellPU[k]&&!collectedPU.has(k))onBoxCaptured(c,r,owner);
+  }
+  return countCells().blank;
+}
+function mineTheirs(){
+  const{p,c,blank}=countCells();
+  return ME===1?{m:p,t:c,blank}:{m:c,t:p,blank};
+}
+
+function loop(){
+  if(!running)return;
+  requestAnimationFrame(loop);
+  acc+=Math.min(clock.getDelta(),0.05);
+  while(acc>=STEP){
+    if(MP&&simTick>=oppCommit)break;            // wait for the other player's inputs
+    const blank=simStep();simTick++;acc-=STEP;
+    if(MP&&simTick%2===0)net({t:'commit',c:simTick+DELAY});
+    if(blank===0){const x=mineTheirs();endGame(x.m,x.t);return;}
+  }
+  if(acc>0.1)acc=0.1;
+
+  const x=mineTheirs();
+  document.getElementById('hud-p').textContent=x.m;
+  document.getElementById('hud-c').textContent=x.t;
+  document.getElementById('hud-b').textContent=x.blank;
+  updateCamera(STEP);
+  renderer.render(scene,camera);
+}
+
+// ═══════════════════════════════════════
+// START / END
+// ═══════════════════════════════════════
+function hideAll(){['screen-menu','screen-over','screen-wait','hud','putray','dpad'].forEach(id=>document.getElementById(id).classList.add('hidden'));}
+function showEl(id){document.getElementById(id).classList.remove('hidden');}
+
+function startGame(opts){
+  opts=opts||{};
+  running=false;time=0;acc=0;simTick=0;inputs={};
+  MP=!!opts.mp;ME=MP?opts.slot:1;OPPN=MP?'Opponent':'CPU';
+  if(MP)seedRng(opts.seed);else rng=Math.random;
+  oppCommit=DELAY;
+  initState();buildBoard();
+
+  for(const k of[1,2])if(ents[k]){scene.remove(ents[k].mesh);scene.remove(ents[k].trail);}
+  const mk=k=>{
+    const sc=k===1?0:COLS,sr=k===1?0:ROWS;
+    const e=makeEntity(sc,sr,k,k===ME?0x4db8ff:0xff4d4d);
+    e.dir=k===1?'E':'W';e.segCol=sc;e.segRow=sr;
+    e.mesh.position.set(e.rX,0.06,e.rZ);
+    return e;
+  };
+  ents[1]=mk(1);ents[2]=mk(2);
+  player=ents[ME];cpu=ents[3-ME];
+
+  camFacing=player.dir;
+  const beh=DIRS[OPP[player.dir]];
+  camCur.set(player.rX+beh.dx*14,9.5,player.rZ+beh.dz*14);
+  camLook.set(player.rX,0,player.rZ);
+  camera.position.copy(camCur);camera.lookAt(camLook);
+  cpuAiTimer=0;
+
+  document.getElementById('puicon').textContent='🎁';
+  document.getElementById('pulbl').textContent='no power';
+  document.getElementById('puslot').classList.remove('active');
+  document.getElementById('hud-cl').textContent=MP?'OPP':'CPU';
+  document.getElementById('over-cl').textContent=MP?'Opponent':'CPU';
+
+  hideAll();['hud','putray','dpad'].forEach(showEl);
+  if(MP)net({t:'commit',c:DELAY});
+  clock=new THREE.Clock();running=true;loop();
+}
+
+function endGame(p,c,note){
+  running=false;hideAll();
+  const t=document.getElementById('over-title');
+  document.getElementById('over-p').textContent=p;
+  document.getElementById('over-c').textContent=c;
+  const on=MP?'OPPONENT':'CPU';
+  if(note==='left'){t.textContent='🏆 OPPONENT LEFT — YOU WIN';t.style.color='#4db8ff';}
+  else if(note==='lost'){t.textContent='⚠️ CONNECTION LOST';t.style.color='#aaa';}
+  else if(p>c){t.textContent='🏆 YOU WIN!';t.style.color='#4db8ff';}
+  else if(c>p){t.textContent='💀 '+on+' WINS';t.style.color='#ff4d4d';}
+  else{t.textContent='🤝 DRAW';t.style.color='#aaa';}
+  const b=document.getElementById('btn-again');
+  b.disabled=!!note;
+  b.innerHTML=MP?'&#x27F3; &nbsp;Rematch':'&#x27F3; &nbsp;Play Again';
+  showEl('screen-over');
+}
+function goMenu(){
+  running=false;closeNet();MP=false;
+  hideAll();showEl('screen-menu');
+}
+function playAgain(){
+  if(!MP){startGame();return;}
+  const b=document.getElementById('btn-again');
+  b.disabled=true;b.textContent='Waiting for opponent…';
+  net({t:'rematch'});
+}
+
+// ═══════════════════════════════════════
+// ONLINE
+// ═══════════════════════════════════════
+let ws=null;
+function net(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
+function closeNet(){if(ws){ws.onclose=null;try{ws.close();}catch(e){}ws=null;}}
+function showWait(msg,link){
+  hideAll();showEl('screen-wait');
+  document.getElementById('wait-msg').textContent=msg;
+  const box=document.getElementById('wait-box');
+  if(link){document.getElementById('wait-link').value=link;box.classList.remove('hidden');}
+  else box.classList.add('hidden');
+}
+function connect(onOpen){
+  closeNet();
+  if(!/^https?:$/.test(location.protocol)||!location.host){
+    showWait('Online play needs the game server. Run "npm start" and open http://localhost:3000 (or your live link) instead of opening the file directly.');
+    return;
+  }
+  let sock;
+  try{sock=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);}
+  catch(e){showWait('Could not start the connection: '+e.message);return;}
+  ws=sock;
+  const slow=setTimeout(()=>{if(ws===sock&&sock.readyState!==1)showWait('Still connecting… the server may be waking up (this can take up to a minute on free hosting).');},6000);
+  sock.onopen=()=>{clearTimeout(slow);onOpen();};
+  sock.onmessage=e=>onNet(JSON.parse(e.data));
+  sock.onclose=()=>{
+    ws=null;
+    if(MP&&running){const x=mineTheirs();endGame(x.m,x.t,'lost');}
+    else if(!document.getElementById('screen-wait').classList.contains('hidden'))
+      showWait('Could not reach the server. Check your internet and try again.');
+  };
+}
+function findMatch(){showWait('Searching for an opponent…');connect(()=>net({t:'queue'}));}
+function inviteFriend(){showWait('Creating your room…');connect(()=>net({t:'create'}));}
+function joinRoom(code){showWait('Joining room '+code+'…');connect(()=>net({t:'join',code}));}
+function cancelWait(){
+  closeNet();history.replaceState(null,'',location.pathname);
+  hideAll();showEl('screen-menu');
+}
+function shareLink(){
+  const url=document.getElementById('wait-link').value;
+  if(navigator.share){navigator.share({title:'Border Wars 3D',text:'Play Border Wars with me!',url}).catch(()=>{});}
+  else if(navigator.clipboard){navigator.clipboard.writeText(url).then(()=>toast('Link copied!'));}
+  else{const i=document.getElementById('wait-link');i.select();document.execCommand('copy');toast('Link copied!');}
+}
+function onNet(m){
+  if(m.t==='room'){
+    const url=location.origin+location.pathname.replace(/index\.html$/,'')+'?room='+m.code;
+    showWait('Send this link to your friend. The game starts when they open it.',url);
+  }else if(m.t==='start'){
+    history.replaceState(null,'',location.pathname);
+    startGame({mp:true,slot:m.slot,seed:m.seed});
+  }else if(m.t==='in'){
+    (inputs[m.tick]=inputs[m.tick]||{})[3-ME]=m.dir;
+  }else if(m.t==='commit'){
+    if(m.c>oppCommit)oppCommit=m.c;
+  }else if(m.t==='opp_left'){
+    if(running){const x=mineTheirs();endGame(x.m,x.t,'left');}
+    else{const b=document.getElementById('btn-again');b.disabled=true;b.textContent='Opponent left';}
+  }else if(m.t==='error'){
+    closeNet();showWait(m.msg);
+  }
+}
+// opened via a friend's invite link?
+(function(){
+  const code=new URLSearchParams(location.search).get('room');
+  if(code)joinRoom(code.toUpperCase());
+})();
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js')
+      .then(()=>console.log('Border Wars: offline ready'))
+      .catch(e=>console.log('SW error',e));
+  });
+}
+</script>
+</body>
+</html>
